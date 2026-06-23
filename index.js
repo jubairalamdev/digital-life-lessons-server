@@ -3,6 +3,7 @@ dns.setServers(['8.8.8.8', '8.8.4.4'])
 
 const express = require('express')
 const cors = require('cors')
+const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 
 const app = express()
 const port = process.env.PORT || 5000
@@ -10,9 +11,38 @@ const port = process.env.PORT || 5000
 app.use(cors())
 app.use(express.json())
 
+const uri = process.env.MONGO_DB_URI;
+
+const client = new MongoClient(uri, {
+    serverApi: {
+        version: ServerApiVersion.v1,
+        strict: true,
+        deprecationErrors: true,
+    }
+});
+
 app.get('/', (req, res) => {
     res.send('The Root of Server is here')
 })
+
+async function run() {
+    try {
+        // Connect the Client with Cluster
+        await client.connect();
+
+        // Connect with Database from Cluster
+        const db = client.db("digital-life-lessons");
+
+        await client.db("admin").command({ ping: 1 });
+        console.log("Pinged your deployment. You successfully connected to MongoDB!");
+
+    } finally {
+        // await client.close();
+    }
+}
+
+run().catch(console.dir);
+
 
 app.listen(port, () => {
     console.log(`Server listening on port ${port}`)
