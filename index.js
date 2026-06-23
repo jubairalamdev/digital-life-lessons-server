@@ -38,7 +38,7 @@ async function run() {
         // Connect with Collection from Database
         const lessonsCollection = db.collection("lessons");
 
-        app.get('/lessons/free', async (req, res) => {
+        app.get('/api/lessons/free', async (req, res) => {
             const cursor = lessonsCollection.find({
                 accessLevel: "Free"
             });
