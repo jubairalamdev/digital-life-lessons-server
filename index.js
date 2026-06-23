@@ -35,6 +35,17 @@ async function run() {
         // Connect with Database from Cluster
         const db = client.db("digital-life-lessons");
 
+        // Connect with Collection from Database
+        const lessonsCollection = db.collection("lessons");
+
+        app.get('/lessons/free', async (req, res) => {
+            const cursor = lessonsCollection.find({
+                accessLevel: "Free"
+            });
+            const result = await cursor.toArray();
+            res.send(result)
+        })
+
         await client.db("admin").command({ ping: 1 });
         console.log("Pinged your deployment. You successfully connected to MongoDB!");
 
