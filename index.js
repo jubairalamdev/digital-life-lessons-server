@@ -96,6 +96,21 @@ async function run() {
             res.send(result)
         })
 
+        app.get('/api/my/allLessons/:userId', async (req, res) => {
+            const userId = req.params.userId;
+            const cursor = lessonsCollection.find({
+                creatorId: userId
+            });
+            const result = await cursor.toArray();
+            res.send(result)
+        })
+
+        app.delete('/api/lessons/:lessonId', async (req, res) => {
+            const lessonId = req.params.lessonId;
+            const result = lessonsCollection.deleteOne({ _id: new ObjectId(lessonId) })
+            res.send(result)
+        })
+
         app.get('/api/lessons/:lessonId', async (req, res) => {
             const lessonId = req.params.lessonId;
             const lesson = await lessonsCollection.findOne({ _id: new ObjectId(lessonId) });
