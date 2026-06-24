@@ -47,6 +47,12 @@ async function run() {
             res.send(result)
         })
 
+        app.get('/api/lessons', async (req, res) => {
+            const cursor = lessonsCollection.find();
+            const result = await cursor.toArray();
+            res.send(result)
+        })
+
         // GET /api/lessons/top-contributors
         app.get('/api/lessons/top_contributors', async (req, res) => {
             try {
@@ -78,6 +84,21 @@ async function run() {
             res.send(user)
         })
 
+        app.get('/api/my/lessons/:userId', async(req,res)=>{
+            const userId = req.params.userId;
+            const cursor = lessonsCollection.find({
+                creatorId: userId,
+                visibility: "Public",
+            });
+            const result = await cursor.toArray();
+            res.send(result)
+        })
+
+        app.get('/api/lessons/:lessonId', async(req,res)=> {
+            const lessonId = req.params.lessonId;
+            const lesson = await lessonsCollection.findOne({ _id: new ObjectId(lessonId)});
+            res.send(lesson)
+        })
 
         await client.db("admin").command({ ping: 1 });
         console.log("Pinged your deployment. You successfully connected to MongoDB!");
