@@ -135,6 +135,61 @@ async function run() {
         });
 
 
+        app.post('/api/lessons', async (req, res) => {
+            try {
+                const newLesson = req.body;
+                const result = await lessonsCollection.insertOne(newLesson);
+
+                if (result.insertedId) {
+                    return res.status(201).json({
+                        success: true,
+                        message: "Lesson saved successfully",
+                        insertedId: result.insertedId
+                    });
+                }
+
+                throw new Error("Database insertion failed");
+            } catch (error) {
+                console.error("Error creating lesson:", error);
+                res.status(500).json({ message: "Internal server error" });
+            }
+        });
+
+
+        app.get('/api/favorites/most-saved', async (req, res) => {
+            try {
+                const mostSaved = await favoritesCollection.aggregate([
+                    {
+                        $group: {
+                            _id: "$lessonId",
+                            countFavorites: { $sum: 1 }
+                        }
+                    },
+                    {
+                        $sort: { countFavorites: -1 }
+                    },
+                    {
+                        $limit: 6
+                    },
+                    {
+                        $project: {
+                            _id: 0,
+                            lessonId: "$_id",
+                            countFavorites: 1
+                        }
+                    }
+                ]).toArray();
+
+                res.status(200).json(mostSaved);
+            } catch (error) {
+                console.error("Aggregation error fetching most saved:", error);
+                res.status(500).json({ message: "Internal server error" });
+            }
+        });
+
+
+
+
         app.get('/api/favorites/check', async (req, res) => {
             console.log("requested.")
             try {
@@ -144,7 +199,7 @@ async function run() {
                 if (!userId || !lessonId) {
                     return res.status(400).json({ message: "Missing userId or lessonId parameters" });
                 }
-                
+
                 const query = {
                     $or: [
                         { userId: userId, lessonId: lessonId },
@@ -218,7 +273,6 @@ async function run() {
 }
 
 run().catch(console.dir);
-
 
 app.listen(port, () => {
     console.log(`Server listening on port ${port}`)
