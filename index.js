@@ -39,6 +39,7 @@ async function run() {
         const lessonsCollection = db.collection("lessons");
         const usersCollection = db.collection("user");
         const commentsCollection = db.collection("comments");
+        const favoritesCollection = db.collection("favorites");
 
         app.get('/api/lessons/free', async (req, res) => {
             const cursor = lessonsCollection.find({
@@ -109,11 +110,47 @@ async function run() {
             res.send(comments);
         })
 
-        app.post('/api/comments', async(req,res)=> {
+        app.post('/api/comments', async (req, res) => {
             const comment = req.body;
             const result = await commentsCollection.insertOne(comment);
             res.send(result);
         })
+
+        // Example of how your Express route should look:
+        app.post('/api/favorites', async (req, res) => {
+            try {
+                const favorite = req.body;
+
+                // Ensure your database collection handler is defined and ready
+                if (!favoritesCollection) {
+                    throw new Error("favoritesCollection database reference is not initialized!");
+                }
+
+                const result = await favoritesCollection.insertOne(favorite);
+                res.status(201).send(result);
+            } catch (error) {
+                console.error("❌ Error saving favorite to database:", error);
+                res.status(500).json({ error: "Failed to save favorite record" });
+            }
+        });
+
+        app.get('/api/favorites/check', async (req, res) => {
+            try {
+                const { userId, lessonId } = req.query;
+
+                if (!userId || !lessonId) {
+                    return res.status(400).json({ message: "Missing userId or lessonId parameters" });
+                }
+                const existingFavorite = await favoritesCollection.findOne({
+                    userId: userId,
+                    lessonId: lessonId
+                });
+                res.status(200).json({ isFavorited: !!existingFavorite });
+            } catch (error) {
+                console.error("Database error while checking favorite status:", error);
+                res.status(500).json({ message: "Internal server error" });
+            }
+        });
 
 
         app.patch('/api/users/:id', async (req, res) => {
@@ -128,7 +165,7 @@ async function run() {
                     name: modifiedUser.name,
                     image: modifiedUser.image
                 }
-            } 
+            }
             const result = await usersCollection.updateOne(filter, updatedDocument);
             res.send(result);
         })
