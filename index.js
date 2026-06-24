@@ -38,6 +38,7 @@ async function run() {
         // Connect with Collection from Database
         const lessonsCollection = db.collection("lessons");
         const usersCollection = db.collection("user");
+        const commentsCollection = db.collection("comments");
 
         app.get('/api/lessons/free', async (req, res) => {
             const cursor = lessonsCollection.find({
@@ -101,8 +102,11 @@ async function run() {
         })
 
 
-
-
+        app.post('/api/comments', async(req,res)=> {
+            const comment = req.body;
+            const result = await commentsCollection.insertOne(comment);
+            res.send(result);
+        })
 
 
         app.patch('/api/users/:id', async (req, res) => {
