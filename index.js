@@ -134,23 +134,61 @@ async function run() {
             }
         });
 
+
         app.get('/api/favorites/check', async (req, res) => {
+            console.log("requested.")
             try {
                 const { userId, lessonId } = req.query;
-
+                console.log("user ====> ", userId)
+                console.log("lesson ====> ", lessonId)
                 if (!userId || !lessonId) {
                     return res.status(400).json({ message: "Missing userId or lessonId parameters" });
                 }
-                const existingFavorite = await favoritesCollection.findOne({
-                    userId: userId,
-                    lessonId: lessonId
-                });
-                res.status(200).json({ isFavorited: !!existingFavorite });
+                
+                const query = {
+                    $or: [
+                        { userId: userId, lessonId: lessonId },
+                        {
+                            userId: ObjectId.isValid(userId) ? new ObjectId(userId) : userId,
+                            lessonId: ObjectId.isValid(lessonId) ? new ObjectId(lessonId) : lessonId
+                        }
+                    ]
+                };
+
+                const existingFavorite = await favoritesCollection.findOne(query);
+
+                console.log("favorite found? ====>", existingFavorite);
+
+                if (!existingFavorite) {
+                    return res.status(200).json(null);
+                }
+
+                res.status(200).send(existingFavorite);
             } catch (error) {
                 console.error("Database error while checking favorite status:", error);
                 res.status(500).json({ message: "Internal server error" });
             }
         });
+
+
+
+        app.get('/api/favorites/:UId', async (req, res) => {
+            try {
+                const { UId } = req.params;
+                const cursor = favoritesCollection.find({
+                    userId: UId
+                });
+                const favorites = await cursor.toArray();
+                // console.log("Data from server ===>", favorites)
+                res.send(favorites)
+            } catch (error) {
+                console.error("Database error:", error);
+                res.status(500).send({ error: "Internal server error" });
+            }
+        });
+
+
+
 
 
         app.patch('/api/users/:id', async (req, res) => {
