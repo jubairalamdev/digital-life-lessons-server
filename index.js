@@ -78,13 +78,13 @@ async function run() {
             }
         });
 
-        app.get('/api/users/:userId', async(req,res)=> {
+        app.get('/api/users/:userId', async (req, res) => {
             const userId = req.params.userId;
-            const user = await usersCollection.findOne({ _id: new ObjectId(userId)});
+            const user = await usersCollection.findOne({ _id: new ObjectId(userId) });
             res.send(user)
         })
 
-        app.get('/api/my/lessons/:userId', async(req,res)=>{
+        app.get('/api/my/lessons/:userId', async (req, res) => {
             const userId = req.params.userId;
             const cursor = lessonsCollection.find({
                 creatorId: userId,
@@ -94,11 +94,34 @@ async function run() {
             res.send(result)
         })
 
-        app.get('/api/lessons/:lessonId', async(req,res)=> {
+        app.get('/api/lessons/:lessonId', async (req, res) => {
             const lessonId = req.params.lessonId;
-            const lesson = await lessonsCollection.findOne({ _id: new ObjectId(lessonId)});
+            const lesson = await lessonsCollection.findOne({ _id: new ObjectId(lessonId) });
             res.send(lesson)
         })
+
+
+
+
+
+
+        app.patch('/api/users/:id', async (req, res) => {
+            const id = req.params.id;
+            const filter = {
+                _id: new ObjectId(id)
+            }
+
+            const modifiedUser = req.body;
+            const updatedDocument = {
+                $set: {
+                    name: modifiedUser.name,
+                    image: modifiedUser.image
+                }
+            } 
+            const result = await usersCollection.updateOne(filter, updatedDocument);
+            res.send(result);
+        })
+
 
         await client.db("admin").command({ ping: 1 });
         console.log("Pinged your deployment. You successfully connected to MongoDB!");
