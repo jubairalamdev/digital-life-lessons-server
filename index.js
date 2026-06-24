@@ -101,6 +101,13 @@ async function run() {
             res.send(lesson)
         })
 
+        app.get('/api/comments/:lesson_id', async (req, res) => {
+            const id = req.params.lesson_id;
+            const cursor = await commentsCollection.find({ lessonId: id });
+            const comments = await cursor.toArray()
+            console.log(comments)
+            res.send(comments);
+        })
 
         app.post('/api/comments', async(req,res)=> {
             const comment = req.body;
