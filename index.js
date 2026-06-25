@@ -75,7 +75,7 @@ async function run() {
 
                 res.send(topContributors);
             } catch (error) {
-                console.error("Error fetching top contributors:", error);
+                // console.error("Error fetching top contributors:", error);
                 res.status(500).json({ message: "Internal server error" });
             }
         });
@@ -108,12 +108,14 @@ async function run() {
         app.delete('/api/lessons/:lessonId', async (req, res) => {
             const lessonId = req.params.lessonId;
             const result = lessonsCollection.deleteOne({ _id: new ObjectId(lessonId) })
+            // console.log(result)
             res.send(result)
         })
 
         app.get('/api/lessons/:lessonId', async (req, res) => {
             const lessonId = req.params.lessonId;
-            const lesson = await lessonsCollection.findOne({ _id: new ObjectId(lessonId) });
+            const lesson = await lessonsCollection.findOne({ _id: new ObjectId(lessonId) })
+            // console.log(lesson);
             res.send(lesson)
         })
 
@@ -121,7 +123,7 @@ async function run() {
             const id = req.params.lesson_id;
             const cursor = await commentsCollection.find({ lessonId: id });
             const comments = await cursor.toArray()
-            console.log(comments)
+            // console.log(comments)
             res.send(comments);
         })
 
@@ -144,7 +146,7 @@ async function run() {
                 const result = await favoritesCollection.insertOne(favorite);
                 res.status(201).send(result);
             } catch (error) {
-                console.error("❌ Error saving favorite to database:", error);
+                // console.error("❌ Error saving favorite to database:", error);
                 res.status(500).json({ error: "Failed to save favorite record" });
             }
         });
@@ -165,7 +167,7 @@ async function run() {
 
                 throw new Error("Database insertion failed");
             } catch (error) {
-                console.error("Error creating lesson:", error);
+                // console.error("Error creating lesson:", error);
                 res.status(500).json({ message: "Internal server error" });
             }
         });
@@ -197,20 +199,18 @@ async function run() {
 
                 res.status(200).json(mostSaved);
             } catch (error) {
-                console.error("Aggregation error fetching most saved:", error);
+                // console.error("Aggregation error fetching most saved:", error);
                 res.status(500).json({ message: "Internal server error" });
             }
         });
 
 
-
-
         app.get('/api/favorites/check', async (req, res) => {
-            console.log("requested.")
+            // console.log("requested.")
             try {
                 const { userId, lessonId } = req.query;
-                console.log("user ====> ", userId)
-                console.log("lesson ====> ", lessonId)
+                // console.log("user ====> ", userId)
+                // console.log("lesson ====> ", lessonId)
                 if (!userId || !lessonId) {
                     return res.status(400).json({ message: "Missing userId or lessonId parameters" });
                 }
@@ -227,7 +227,7 @@ async function run() {
 
                 const existingFavorite = await favoritesCollection.findOne(query);
 
-                console.log("favorite found? ====>", existingFavorite);
+                // console.log("favorite found? ====>", existingFavorite);
 
                 if (!existingFavorite) {
                     return res.status(200).json(null);
@@ -235,7 +235,7 @@ async function run() {
 
                 res.status(200).send(existingFavorite);
             } catch (error) {
-                console.error("Database error while checking favorite status:", error);
+                // console.error("Database error while checking favorite status:", error);
                 res.status(500).json({ message: "Internal server error" });
             }
         });
@@ -252,13 +252,35 @@ async function run() {
                 // console.log("Data from server ===>", favorites)
                 res.send(favorites)
             } catch (error) {
-                console.error("Database error:", error);
+                // console.error("Database error:", error);
                 res.status(500).send({ error: "Internal server error" });
             }
         });
 
-
-
+        app.patch('/api/lessons/:id', async (req, res) => {
+            const id = req.params.id;
+            const filter = {
+                _id: new ObjectId(id)
+            }
+            const modifiedLesson = req.body;
+            // console.log("Patching the data now =======> ", modifiedLesson)
+            const updatedDocument = {
+                $set: {
+                    title: modifiedLesson.name,
+                    description: modifiedLesson.description,
+                    category: modifiedLesson.category,
+                    emotionalTone: modifiedLesson.emotionalTone,
+                    image: modifiedLesson.image,
+                    visibility: modifiedLesson.visibility,
+                    accessLevel: modifiedLesson.accessLevel,
+                    isFeatured: modifiedLesson.isFeatured,
+                    isReviewed: modifiedLesson.isReviewed,
+                }
+            }
+            const result = await lessonsCollection.updateOne(filter, updatedDocument);
+            // console.log("result now =======> ", result)
+            res.send(result);
+        })
 
 
         app.patch('/api/users/:id', async (req, res) => {
@@ -274,6 +296,24 @@ async function run() {
                     image: modifiedUser.image
                 }
             }
+            const result = await usersCollection.updateOne(filter, updatedDocument);
+            res.send(result);
+        })
+
+        app.patch('/api/users/upgrade/plan/:id', async (req, res) => {
+            const id = req.params.id;
+            const filter = {
+                _id: new ObjectId(id)
+            }
+
+            const modifiedUser = req.body;
+            const updatedDocument = {
+                $set: {
+                    plan: modifiedUser.plan
+                }
+            }
+            // console.log("filtered ======> ", filter)
+            // console.log("modifiedUser ======> ", updatedDocument)
             const result = await usersCollection.updateOne(filter, updatedDocument);
             res.send(result);
         })
