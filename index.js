@@ -318,14 +318,71 @@ async function run() {
             res.send(result);
         })
 
-        
+
         app.get('/api/users', async (req, res) => {
             const cursor = usersCollection.find({});
             const result = await cursor.toArray();
             res.send(result);
         })
 
+        app.patch('/api/users/role/:id', async (req, res) => {
+            const id = req.params.id;
+            const filter = { _id: new ObjectId(id) };
+            const updatedDocument = {
+                $set: { role: req.body.role }
+            };
+            const result = await usersCollection.updateOne(filter, updatedDocument);
+            res.send(result);
+        });
 
+        app.patch('/api/lessons/toggle-featured/:id', async (req, res) => {
+            const id = req.params.id;
+            const { isFeatured } = req.body;
+            const result = await lessonsCollection.updateOne(
+                { _id: new ObjectId(id) },
+                { $set: { isFeatured: isFeatured } }
+            );
+            res.send(result);
+        });
+
+        app.patch('/api/lessons/toggle-reviewed/:id', async (req, res) => {
+            const id = req.params.id;
+            const { isReviewed } = req.body;
+            const result = await lessonsCollection.updateOne(
+                { _id: new ObjectId(id) },
+                { $set: { isReviewed: isReviewed } }
+            );
+            res.send(result);
+        });
+
+
+        app.patch('/api/lessons/like/:id', async (req, res) => {
+            const id = req.params.id;
+            const { userId } = req.body;
+
+            try {
+                const lesson = await lessonsCollection.findOne({ _id: new ObjectId(id) });
+                if (!lesson) return res.status(404).send({ error: "Lesson not found" });
+
+                const isLiked = lesson.likes && lesson.likes.includes(userId);
+
+                let updateQuery;
+                if (isLiked) {
+                    updateQuery = { $pull: { likes: userId } };
+                } else {
+                    updateQuery = { $addToSet: { likes: userId } };
+                }
+
+                const result = await lessonsCollection.updateOne(
+                    { _id: new ObjectId(id) },
+                    updateQuery
+                );
+
+                res.send({ success: true, action: isLiked ? 'unliked' : 'liked' });
+            } catch (error) {
+                res.status(500).send({ error: "Internal server error" });
+            }
+        });
 
         await client.db("admin").command({ ping: 1 });
         console.log("Pinged your deployment. You successfully connected to MongoDB!");
