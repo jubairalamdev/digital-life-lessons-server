@@ -40,6 +40,7 @@ async function run() {
         const usersCollection = db.collection("user");
         const commentsCollection = db.collection("comments");
         const favoritesCollection = db.collection("favorites");
+        const reportsCollection = db.collection("reports");
 
         app.get('/api/lessons/free', async (req, res) => {
             const cursor = lessonsCollection.find({
@@ -77,6 +78,33 @@ async function run() {
             } catch (error) {
                 // console.error("Error fetching top contributors:", error);
                 res.status(500).json({ message: "Internal server error" });
+            }
+        });
+
+        app.post('/api/reports', async (req, res) => {
+            try {
+                const reportData = req.body;
+                const result = await reportsCollection.insertOne(reportData);
+                res.status(201).send(result);
+            } catch (error) {
+                console.error("Error submitting report:", error);
+                res.status(500).json({ error: "Failed to submit report" });
+            }
+        });
+
+        app.get('/api/reports/check', async (req, res) => {
+            try {
+                const { lessonId, userId } = req.query;
+                if (!lessonId || !userId) return res.status(400).send(null);
+
+                const existingReport = await reportsCollection.findOne({
+                    lessonId: lessonId,
+                    reporterUserId: userId
+                });
+
+                res.send(existingReport); // Sends null if not found
+            } catch (error) {
+                res.status(500).send(null);
             }
         });
 
