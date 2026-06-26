@@ -43,7 +43,7 @@ async function run() {
 
         app.get('/api/lessons/free', async (req, res) => {
             const cursor = lessonsCollection.find({
-                accessLevel: "Free"
+                isFeatured: true
             });
             const result = await cursor.toArray();
             res.send(result)
