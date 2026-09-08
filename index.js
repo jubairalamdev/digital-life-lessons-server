@@ -6,6 +6,7 @@ require('dotenv').config();
 const express = require('express')
 const cors = require('cors')
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
+const OpenAI = require('openai');
 
 const app = express()
 const port = process.env.PORT || 5000
@@ -14,6 +15,36 @@ app.use(cors())
 app.use(express.json())
 
 const uri = process.env.MONGO_DB_URI;
+
+const openai = process.env.OPENAI_API_KEY
+    ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY, baseURL: process.env.OPENAI_BASE_URL || undefined })
+    : null;
+const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-4o-mini';
+
+// In-memory rate limiting for the AI chat route (per server instance).
+const chatLimits = new Map();
+const CHAT_LIMIT = 20;
+const CHAT_WINDOW_MS = 60 * 1000;
+
+function chatRateLimit(key) {
+    const now = Date.now();
+    const record = chatLimits.get(key);
+    if (!record || now - record.resetAt >= CHAT_WINDOW_MS) {
+        chatLimits.set(key, { count: 1, resetAt: now + CHAT_WINDOW_MS });
+        return { ok: true, remaining: CHAT_LIMIT - 1 };
+    }
+    if (record.count >= CHAT_LIMIT) {
+        return { ok: false, remaining: 0, retryAfterSec: Math.ceil((record.resetAt - now) / 1000) };
+    }
+    record.count += 1;
+    return { ok: true, remaining: CHAT_LIMIT - record.count };
+}
+
+function clientIp(req) {
+    return (req.headers['x-forwarded-for'] || '').split(',')[0].trim()
+        || req.socket?.remoteAddress
+        || 'unknown';
+}
 
 const client = new MongoClient(uri, {
     serverApi: {
@@ -89,6 +120,58 @@ async function run() {
             } catch (error) {
                 console.error("Error submitting report:", error);
                 res.status(500).json({ error: "Failed to submit report" });
+            }
+        });
+
+        // POST /api/ai/chat — OpenAI-powered lesson assistant (server-side proxy)
+        app.post('/api/ai/chat', async (req, res) => {
+            try {
+                const rate = chatRateLimit(clientIp(req));
+                if (!rate.ok) {
+                    return res.status(429).json({
+                        error: "Too many requests. Please try again shortly.",
+                        retryAfterSec: rate.retryAfterSec
+                    });
+                }
+
+                if (!openai) {
+                    return res.status(503).json({ error: "AI assistant is not configured on the server." });
+                }
+
+                const { messages, lesson } = req.body;
+
+                if (!Array.isArray(messages) || messages.length === 0) {
+                    return res.status(400).json({ error: "Messages must be a non-empty array." });
+                }
+
+                const sanitized = messages
+                    .filter((m) => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string')
+                    .slice(-10)
+                    .map((m) => ({ role: m.role, content: m.content }));
+
+                if (sanitized.length === 0) {
+                    return res.status(400).json({ error: "No valid message content provided." });
+                }
+
+                const systemPrompt = lesson && lesson.title
+                    ? `You are Digital Life Lessons, a supportive mentor helping users reflect on life lessons. The user is reading the lesson "${lesson.title}". Keep answers empathetic, concise, and grounded in practical advice.`
+                    : "You are Digital Life Lessons, a supportive mentor helping users reflect on life lessons. Keep answers empathetic, concise, and grounded in practical advice.";
+
+                const completion = await openai.chat.completions.create({
+                    model: OPENAI_MODEL,
+                    messages: [{ role: "system", content: systemPrompt }, ...sanitized],
+                    max_tokens: 500,
+                });
+
+                const reply = completion.choices?.[0]?.message?.content?.trim();
+                if (!reply) {
+                    return res.status(502).json({ error: "The AI assistant returned an empty response." });
+                }
+
+                res.status(200).json({ reply });
+            } catch (error) {
+                console.error("Error in AI chat:", error);
+                res.status(500).json({ error: "Failed to get a response from the AI assistant." });
             }
         });
 
