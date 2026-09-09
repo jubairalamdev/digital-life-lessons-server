@@ -74,10 +74,13 @@ app.get('/', (req, res) => {
 
 async function run() {
     try {
-        // Connect the Client with Cluster
-        await client.connect();
-
-        // Connect with Database from Cluster
+        // Database handles are lazy — obtaining them does not require a
+        // connection, so ALL routes below are registered immediately and
+        // synchronously. A slow or unreachable Mongo can no longer silently
+        // unregister the entire /api surface (which previously surfaced as
+        // "Cannot GET /api/..." 404s in production while "/" kept working).
+        // The actual connection is attempted at the end of this function and
+        // again lazily by the driver on first use.
         const db = client.db("digital-life-lessons");
 
         // Connect with Collection from Database
@@ -547,15 +550,30 @@ async function run() {
             }
         });
 
+        // Connect AFTER all routes are registered, so connection problems
+        // degrade to per-request 503s instead of unregistering the API.
+        await client.connect();
         await client.db("admin").command({ ping: 1 });
         console.log("Pinged your deployment. You successfully connected to MongoDB!");
 
-    } finally {
-        // await client.close();
+    } catch (error) {
+        console.error("MongoDB connection failed:", error?.message || error);
     }
 }
 
-run().catch(console.dir);
+run();
+
+// Handlers that don't catch their own errors surface here. Distinguish a
+// database/connection problem (503) from a genuine internal error (500).
+// Registered after run(), so it sits after all routes in the stack.
+app.use((err, req, res, next) => {
+    const name = err?.name || "";
+    const message = err?.message || "";
+    const looksLikeDb = /Mongo|connect|ECONN|ENOTFOUND|EAI_AGAIN/i.test(`${name} ${message}`);
+    res.status(looksLikeDb ? 503 : 500).json({
+        error: looksLikeDb ? "Database is temporarily unavailable." : "Internal server error.",
+    });
+});
 
 app.listen(port, () => {
     console.log(`Server listening on port ${port}`)
