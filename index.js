@@ -169,9 +169,10 @@ async function run() {
                     return res.status(400).json({ error: "No valid message content provided." });
                 }
 
-                const systemPrompt = lesson && lesson.title
-                    ? `You are Digital Life Lessons, a supportive mentor helping users reflect on life lessons. The user is reading the lesson "${lesson.title}". Keep answers empathetic, concise, and grounded in practical advice.`
-                    : "You are Digital Life Lessons, a supportive mentor helping users reflect on life lessons. Keep answers empathetic, concise, and grounded in practical advice.";
+                const systemPrompt = (lesson && lesson.title
+                    ? `You are Digital Life Lessons, a supportive mentor helping users reflect on life lessons. The user is reading the lesson "${lesson.title}". Keep answers empathetic and grounded in practical advice.`
+                    : "You are Digital Life Lessons, a supportive mentor helping users reflect on life lessons. Keep answers empathetic and grounded in practical advice.")
+                    + " Always respond in exactly 4 lines or fewer — short, to the point, no headers or markdown.";
 
                 const completion = await aiClient.chat.completions.create({
                     model: AI_MODEL,
