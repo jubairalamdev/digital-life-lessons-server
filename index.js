@@ -177,7 +177,7 @@ async function run() {
                 const completion = await aiClient.chat.completions.create({
                     model: AI_MODEL,
                     messages: [{ role: "system", content: systemPrompt }, ...sanitized],
-                    max_tokens: 500,
+                    max_tokens: 250,
                     stream: wantStream ? true : undefined,
                 });
 
