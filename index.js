@@ -124,6 +124,7 @@ async function run() {
         });
 
         // POST /api/ai/chat — OpenAI-powered lesson assistant (server-side proxy)
+        // Supports both plain JSON (default) and SSE streaming (req.body.stream === true)
         app.post('/api/ai/chat', async (req, res) => {
             try {
                 const rate = chatRateLimit(clientIp(req));
@@ -139,6 +140,7 @@ async function run() {
                 }
 
                 const { messages, lesson } = req.body;
+                const wantStream = req.body?.stream === true;
 
                 if (!Array.isArray(messages) || messages.length === 0) {
                     return res.status(400).json({ error: "Messages must be a non-empty array." });
@@ -161,7 +163,37 @@ async function run() {
                     model: OPENAI_MODEL,
                     messages: [{ role: "system", content: systemPrompt }, ...sanitized],
                     max_tokens: 500,
+                    stream: wantStream ? true : undefined,
                 });
+
+                // Streaming response (SSE)
+                if (wantStream) {
+                    res.setHeader("Content-Type", "text/event-stream");
+                    res.setHeader("Cache-Control", "no-cache");
+                    res.setHeader("Connection", "keep-alive");
+                    res.flushHeaders?.();
+
+                    req.on("close", () => completion?.controller?.abort());
+
+                    try {
+                        for await (const chunk of completion) {
+                            const delta = chunk?.choices?.[0]?.delta?.content;
+                            if (delta) {
+                                res.write(`data: ${JSON.stringify({ delta })}\n\n`);
+                            }
+                        }
+                    } catch (error) {
+                        if (!res.writableEnded) {
+                            res.write(`data: ${JSON.stringify({ error: "Stream interrupted." })}\n\n`);
+                        }
+                    }
+
+                    if (!res.writableEnded) {
+                        res.write("data: [DONE]\n\n");
+                        res.end();
+                    }
+                    return;
+                }
 
                 const reply = completion.choices?.[0]?.message?.content?.trim();
                 if (!reply) {
@@ -171,7 +203,12 @@ async function run() {
                 res.status(200).json({ reply });
             } catch (error) {
                 console.error("Error in AI chat:", error);
-                res.status(500).json({ error: "Failed to get a response from the AI assistant." });
+                if (!res.headersSent) {
+                    res.status(500).json({ error: "Failed to get a response from the AI assistant." });
+                } else if (!res.writableEnded) {
+                    res.write(`data: ${JSON.stringify({ error: "Failed to get a response." })}\n\n`);
+                    res.end();
+                }
             }
         });
 
