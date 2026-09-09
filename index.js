@@ -16,10 +16,24 @@ app.use(express.json())
 
 const uri = process.env.MONGO_DB_URI;
 
-const openai = process.env.OPENAI_API_KEY
-    ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY, baseURL: process.env.OPENAI_BASE_URL || undefined })
+// AI chat provider — OpenRouter (OpenAI-compatible). Falls back to a direct
+// OpenAI key if no OpenRouter key is configured.
+const AI_API_KEY = process.env.OPEN_ROUTER_API_KEY || process.env.OPENAI_API_KEY;
+const AI_BASE_URL = process.env.OPENROUTER_BASE_URL
+    || process.env.OPENAI_BASE_URL
+    || 'https://openrouter.ai/api/v1';
+const AI_MODEL = process.env.OPENROUTER_MODEL || process.env.OPENAI_MODEL || 'openai/gpt-4o-mini';
+
+const aiClient = AI_API_KEY
+    ? new OpenAI({
+        apiKey: AI_API_KEY,
+        baseURL: AI_BASE_URL,
+        defaultHeaders: {
+            'HTTP-Referer': process.env.SITE_URL || 'https://digital-life-lessons.vercel.app',
+            'X-Title': process.env.SITE_NAME || 'Digital Life Lessons',
+        },
+    })
     : null;
-const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-4o-mini';
 
 // In-memory rate limiting for the AI chat route (per server instance).
 const chatLimits = new Map();
@@ -123,7 +137,7 @@ async function run() {
             }
         });
 
-        // POST /api/ai/chat — OpenAI-powered lesson assistant (server-side proxy)
+        // POST /api/ai/chat — OpenRouter-backed lesson assistant (server-side proxy)
         // Supports both plain JSON (default) and SSE streaming (req.body.stream === true)
         app.post('/api/ai/chat', async (req, res) => {
             try {
@@ -135,7 +149,7 @@ async function run() {
                     });
                 }
 
-                if (!openai) {
+                if (!aiClient) {
                     return res.status(503).json({ error: "AI assistant is not configured on the server." });
                 }
 
@@ -159,8 +173,8 @@ async function run() {
                     ? `You are Digital Life Lessons, a supportive mentor helping users reflect on life lessons. The user is reading the lesson "${lesson.title}". Keep answers empathetic, concise, and grounded in practical advice.`
                     : "You are Digital Life Lessons, a supportive mentor helping users reflect on life lessons. Keep answers empathetic, concise, and grounded in practical advice.";
 
-                const completion = await openai.chat.completions.create({
-                    model: OPENAI_MODEL,
+                const completion = await aiClient.chat.completions.create({
+                    model: AI_MODEL,
                     messages: [{ role: "system", content: systemPrompt }, ...sanitized],
                     max_tokens: 500,
                     stream: wantStream ? true : undefined,
